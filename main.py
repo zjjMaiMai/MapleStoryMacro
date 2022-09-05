@@ -1,15 +1,7 @@
 import time
-import ctypes
 import argparse
+import window
 from actor import MyActor
-
-
-def get_active_windows_text():
-    hwnd = ctypes.windll.user32.GetForegroundWindow()
-    length = ctypes.windll.user32.GetWindowTextLengthW(hwnd) + 1
-    title = ctypes.create_unicode_buffer(length)
-    ctypes.windll.user32.GetWindowTextW(hwnd, title, length)
-    return "".join(title).strip("\0")
 
 
 def main():
@@ -18,11 +10,15 @@ def main():
     args = parser.parse_args()
     print(args)
 
+    hwnd = window.find_window("MapleStory")
+    if hwnd == 0:
+        print("No MapleStory window!")
+        return
+
     actor = MyActor(args.m)
     while True:
-        window_name = get_active_windows_text()
-        if window_name == "MapleStory":
-            actor.use()
+        if window.active_window() == hwnd:
+            actor.update()
         else:
             time.sleep(0.1)
 

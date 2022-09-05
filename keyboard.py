@@ -4,7 +4,6 @@ __all__ = [
     "press_key",
     "release_key",
     "virtual_key_to_scan_code",
-    "KEY_MAP",
 ]
 
 KEY_MAP = {
@@ -150,4 +149,4 @@ def release_key(key_code):
 
 
 def virtual_key_to_scan_code(key_code):
-    return ctypes.windll.user32.MapVirtualKeyExW(key_code, 0, 0)
+    return ctypes.windll.user32.MapVirtualKeyExW(KEY_MAP[key_code], 0, 0)
