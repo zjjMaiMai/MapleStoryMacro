@@ -9,7 +9,7 @@ class Action:
     https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
     """
 
-    def __init__(self, name, cd, vkey, olevel, duration):
+    def __init__(self, name, cd, vkey, olevel, duration=1.0):
         self.name = name
         self.cd = cd
         self.vkey = keyboard.virtual_key_to_scan_code(vkey)
@@ -92,16 +92,17 @@ class MyActor(Actor):
     def __init__(self, move_time):
         VK = keyboard.KEY_MAP
         actions = [
-            Action("BUFF_6", cd=120.0, vkey="6", olevel=14, duration=0.5),
-            Action("BUFF_5", cd=205.0, vkey="5", olevel=13, duration=2.5),
-            Action("BUFF_4", cd=125.0, vkey="4", olevel=12, duration=1.0),
-            Action("BUFF_3", cd=95.0, vkey="3", olevel=11, duration=1.0),
-            Action("BUFF_2", cd=185.0, vkey="2", olevel=10, duration=1.0),
-            MoveAround("Around", move_time, olevel=10, duration=0.5),
-            DualJumpAttack("JumpR", cd=10.5, vkey="r", olevel=9, duration=1.4),
-            Action("F3", cd=65.0, vkey="f3", olevel=8, duration=0.8),
-            Action("F1", cd=15.0, vkey="f1", olevel=7, duration=0.8),
-            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.1),
+            Action("F4", cd=185.0, vkey="f4", olevel=10),
+            Action("F3", cd=185.0, vkey="f3", olevel=10),
+            Action("F2", cd=185.0, vkey="f2", olevel=10),
+            Action("2", cd=125.0, vkey="2", olevel=10),
+            Action("1", cd=95.0, vkey="1", olevel=10),
+            Action("F1", cd=185.0, vkey="f1", olevel=10, duration=1.5),
+            MoveAround("Move", move_time, olevel=9, duration=0.3),
+            DualJumpAttack("JumpE", cd=10.5, vkey="e", olevel=8, duration=1.5),
+            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.2),
+            Action("R", cd=17.0, vkey="r", olevel=9),
+            Action("T", cd=65.0, vkey="t", olevel=9),
         ]
         super().__init__(actions)
         self.hammer_count = 0
