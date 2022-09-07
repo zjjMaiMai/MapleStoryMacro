@@ -100,8 +100,8 @@ class MyActor(Actor):
             Action("1", cd=95.0, vkey="1", olevel=10),
             MoveAround("Move", move_time, olevel=9, duration=0.3),
             DualJumpAttack("JumpE", cd=10.5, vkey="e", olevel=8, duration=1.4),
+            DualJumpAttack("JumpR", cd=16.5, vkey="r", olevel=7, duration=1.2),
             DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.1),
-            Action("R", cd=17.0, vkey="r", olevel=9),
             Action("T", cd=65.0, vkey="t", olevel=9),
         ]
         super().__init__(actions)
