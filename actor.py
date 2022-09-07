@@ -110,14 +110,14 @@ class MyActor(Actor):
         for a in self.actions:
             if not a.is_ready():
                 continue
-            if a.name == "F3" and self.hammer_count < 6:
+            if a.name == "T" and self.hammer_count < 6:
                 continue
 
             a.update()
 
             if a.name == "JumpQ":
                 self.hammer_count = min(self.hammer_count + 1, 6)
-            elif a.name == "F3":
+            elif a.name == "T":
                 self.hammer_count = 0
 
             break
