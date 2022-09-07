@@ -92,15 +92,14 @@ class MyActor(Actor):
     def __init__(self, move_time):
         VK = keyboard.KEY_MAP
         actions = [
-            Action("F4", cd=185.0, vkey="f4", olevel=10),
             Action("F3", cd=185.0, vkey="f3", olevel=10),
             Action("F2", cd=185.0, vkey="f2", olevel=10),
+            Action("F1", cd=185.0, vkey="f1", olevel=10, duration=1.5),
             Action("2", cd=125.0, vkey="2", olevel=10),
             Action("1", cd=95.0, vkey="1", olevel=10),
-            Action("F1", cd=185.0, vkey="f1", olevel=10, duration=1.5),
             MoveAround("Move", move_time, olevel=9, duration=0.3),
-            DualJumpAttack("JumpE", cd=10.5, vkey="e", olevel=8, duration=1.5),
-            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.2),
+            DualJumpAttack("JumpE", cd=10.5, vkey="e", olevel=8, duration=1.4),
+            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.1),
             Action("R", cd=17.0, vkey="r", olevel=9),
             Action("T", cd=65.0, vkey="t", olevel=9),
         ]

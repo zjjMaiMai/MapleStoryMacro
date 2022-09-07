@@ -10,8 +10,8 @@ def split_image(image, bbox):
     return image[bbox[1] : bbox[3], bbox[0] : bbox[2]]
 
 
-def template_matching(image, template, threshold=0.5):
-    result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+def template_matching(image, template, threshold=0.8):
+    result = cv2.matchTemplate(image, template, cv2.TM_CCORR_NORMED)
     _, c, _, tl = cv2.minMaxLoc(result)
     if c < threshold:
         return None
