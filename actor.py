@@ -95,6 +95,7 @@ class MyActor(Actor):
             Action("F3", cd=185.0, vkey="f3", olevel=10),
             Action("F2", cd=185.0, vkey="f2", olevel=10),
             Action("F1", cd=185.0, vkey="f1", olevel=10, duration=1.5),
+            Action("5", cd=125.0, vkey="5", olevel=10, duration=0.1),
             Action("2", cd=125.0, vkey="2", olevel=10),
             Action("1", cd=95.0, vkey="1", olevel=10),
             MoveAround("Move", move_time, olevel=9, duration=0.3),
