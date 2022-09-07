@@ -94,15 +94,15 @@ class MyActor(Actor):
         actions = [
             Action("F3", cd=185.0, vkey="f3", olevel=10),
             Action("F2", cd=185.0, vkey="f2", olevel=10),
-            Action("F1", cd=185.0, vkey="f1", olevel=10, duration=1.5),
+            Action("F1", cd=185.0, vkey="f1", olevel=10, duration=2.5),
             Action("5", cd=125.0, vkey="5", olevel=10, duration=0.1),
             Action("2", cd=125.0, vkey="2", olevel=10),
             Action("1", cd=95.0, vkey="1", olevel=10),
             MoveAround("Move", move_time, olevel=9, duration=0.3),
             DualJumpAttack("JumpE", cd=10.5, vkey="e", olevel=8, duration=1.4),
             DualJumpAttack("JumpR", cd=16.5, vkey="r", olevel=7, duration=1.2),
-            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.1),
             Action("T", cd=65.0, vkey="t", olevel=9),
+            DualJumpAttack("JumpQ", cd=0.0, vkey="q", olevel=0, duration=1.1),
         ]
         super().__init__(actions)
         self.hammer_count = 0
