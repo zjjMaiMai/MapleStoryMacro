@@ -1,95 +1,15 @@
 import ctypes
+import ctypes.wintypes
+import atexit
+import win32con
+import threading
 
 __all__ = [
     "press_key",
     "release_key",
     "virtual_key_to_scan_code",
+    "GlobalHotKey",
 ]
-
-KEY_MAP = {
-    "left": 0x25,  # Arrow keys
-    "up": 0x26,
-    "right": 0x27,
-    "down": 0x28,
-    "backspace": 0x08,  # Special keys
-    "tab": 0x09,
-    "enter": 0x0D,
-    "shift": 0x10,
-    "ctrl": 0x11,
-    "alt": 0x12,
-    "caps lock": 0x14,
-    "esc": 0x1B,
-    "space": 0x20,
-    "page up": 0x21,
-    "page down": 0x22,
-    "end": 0x23,
-    "home": 0x24,
-    "insert": 0x2D,
-    "delete": 0x2E,
-    "0": 0x30,  # Numbers
-    "1": 0x31,
-    "2": 0x32,
-    "3": 0x33,
-    "4": 0x34,
-    "5": 0x35,
-    "6": 0x36,
-    "7": 0x37,
-    "8": 0x38,
-    "9": 0x39,
-    "a": 0x41,  # Letters
-    "b": 0x42,
-    "c": 0x43,
-    "d": 0x44,
-    "e": 0x45,
-    "f": 0x46,
-    "g": 0x47,
-    "h": 0x48,
-    "i": 0x49,
-    "j": 0x4A,
-    "k": 0x4B,
-    "l": 0x4C,
-    "m": 0x4D,
-    "n": 0x4E,
-    "o": 0x4F,
-    "p": 0x50,
-    "q": 0x51,
-    "r": 0x52,
-    "s": 0x53,
-    "t": 0x54,
-    "u": 0x55,
-    "v": 0x56,
-    "w": 0x57,
-    "x": 0x58,
-    "y": 0x59,
-    "z": 0x5A,
-    "f1": 0x70,  # Functional keys
-    "f2": 0x71,
-    "f3": 0x72,
-    "f4": 0x73,
-    "f5": 0x74,
-    "f6": 0x75,
-    "f7": 0x76,
-    "f8": 0x77,
-    "f9": 0x78,
-    "f10": 0x79,
-    "f11": 0x7A,
-    "f12": 0x7B,
-    "num lock": 0x90,
-    "scroll lock": 0x91,
-    ";": 0xBA,  # Special characters
-    "=": 0xBB,
-    ",": 0xBC,
-    "-": 0xBD,
-    ".": 0xBE,
-    "/": 0xBF,
-    "`": 0xC0,
-    "[": 0xDB,
-    "\\": 0xDC,
-    "]": 0xDD,
-    "'": 0xDE,
-}
-
-SendInput = ctypes.windll.user32.SendInput
 
 # C struct redefinitions
 PUL = ctypes.POINTER(ctypes.c_ulong)
@@ -132,21 +52,81 @@ class Input(ctypes.Structure):
     _fields_ = [("type", ctypes.c_ulong), ("ii", Input_I)]
 
 
-def press_key(key_code):
+def press_key(scan_code):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
-    ii_.ki = KeyBdInput(0, key_code, 0x0008, 0, ctypes.pointer(extra))
+    ii_.ki = KeyBdInput(0, scan_code, 0x0008, 0, ctypes.pointer(extra))
     x = Input(ctypes.c_ulong(1), ii_)
     ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
 
 
-def release_key(key_code):
+def release_key(scan_code):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
-    ii_.ki = KeyBdInput(0, key_code, 0x0008 | 0x0002, 0, ctypes.pointer(extra))
+    ii_.ki = KeyBdInput(0, scan_code, 0x0008 | 0x0002, 0, ctypes.pointer(extra))
     x = Input(ctypes.c_ulong(1), ii_)
     ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
 
 
-def virtual_key_to_scan_code(key_code):
-    return ctypes.windll.user32.MapVirtualKeyExW(KEY_MAP[key_code], 0, 0)
+VKEY_CODE = {chr(c).upper(): c for c in range(0x30, 0x5B)}
+
+
+def key_str_to_vkey_code(key_str: str):
+    key_str = key_str.upper()
+    if key_str in VKEY_CODE:
+        return VKEY_CODE[key_str]
+    return eval("win32con.VK_" + key_str)
+
+
+def virtual_key_to_scan_code(key_str: str):
+    key_code = key_str_to_vkey_code(key_str)
+    return ctypes.windll.user32.MapVirtualKeyExW(key_code, 0, 0)
+
+
+class GlobalHotKey:
+    def __init__(self, key_cb):
+        self.key_cb = key_cb
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._do, daemon=True)
+        atexit.register(self.stop)
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        self.thread.join()
+
+    def _do(self):
+        code_cb = dict()
+
+        for ids, (mod_key, cb) in enumerate(self.key_cb.items()):
+            mod_str, key_str = mod_key.split("+")
+            if mod_str == "NULL":
+                mod_code = 0
+            else:
+                mod_code = eval("win32con.MOD_" + mod_str)
+            vkey_code = key_str_to_vkey_code(key_str)
+            ctypes.windll.user32.RegisterHotKey(None, ids, mod_code, vkey_code)
+            print(f"RegisterHotKey {mod_key}!")
+            code_cb[(mod_code, vkey_code)] = cb
+
+        timer_id = ctypes.windll.user32.SetTimer(None, None, 50, None)
+        msg = ctypes.wintypes.MSG()
+        while (
+            not self.stop_event.is_set()
+            and ctypes.windll.user32.GetMessageA(ctypes.byref(msg), None, 0, 0) != 0
+        ):
+            if msg.message == win32con.WM_HOTKEY:
+                mod_code = msg.lParam & 0b1111111111111111
+                vkey_code = msg.lParam >> 16
+                callback = code_cb.get((mod_code, vkey_code), None)
+                if callback is not None:
+                    callback()
+                continue
+            ctypes.windll.user32.TranslateMessage(ctypes.byref(msg))
+            ctypes.windll.user32.DispatchMessageA(ctypes.byref(msg))
+        ctypes.windll.user32.KillTimer(None, timer_id)
+        for ids, (mod_key, cb) in enumerate(self.key_cb.items()):
+            ctypes.windll.user32.UnregisterHotKey(None, ids)
+            print(f"UnregisterHotKey {mod_key}!")

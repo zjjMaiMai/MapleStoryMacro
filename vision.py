@@ -28,6 +28,10 @@ def minimap_detect(image):
     br = template_matching(image_tl, MM_BR_TEMPLATE)
     if br is None:
         return None
+
+    if tl[0] >= br[2] or tl[1] >= br[3]:
+        return None
+
     return [tl[0], tl[1], br[2], br[3]]
 
 
