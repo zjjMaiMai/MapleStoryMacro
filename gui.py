@@ -1,15 +1,26 @@
+import os
 import time
+import json
 import vision
 import window
+import random
 import keyboard
 import tkinter as tk
+import actor
 from PIL import Image, ImageTk
 
 
 class App(tk.Frame):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.canvas = tk.Canvas(self, width=200, height=100, background="green")
+        self.canvas = tk.Canvas(
+            self,
+            width=200,
+            height=100,
+            borderwidth=0,
+            highlightthickness=0,
+            background="green",
+        )
         self.grid(row=0, column=0, sticky="nsew")
 
         self.canvas.grid(row=0, column=0, sticky="nsew")
@@ -28,61 +39,155 @@ class App(tk.Frame):
             }
         )
         self.hotkey.start()
-        self.after(10, self.loop)
+        self.after(30, self.loop)
 
-        # tiles
+        # infoj
+        self.image = None
+        self.map_bbox = None
         self.spos = None
+        self.epos = None
+        self.tpos = None
         self.tiles = []
+
+        # primitive
+        self.image_prim = None
+        self.spos_prim = None
+        self.epos_prim = None
+        self.tpos_prim = None
+        self.tiles_prim = []
+
+        # reload tiles
+        if os.path.exists("assert/minimap_info.json"):
+            with open("assert/minimap_info.json", mode="rt", encoding="utf-8") as fp:
+                self.tiles = json.load(fp)
+
+        # flags
+        self.running = False
+
+        # actor
+        self.actor = None
 
     def loop(self):
         self.custom_loop()
-        self.after(10, self.loop)
+        self.after(30, self.loop)
 
     def custom_loop(self):
         image = window.capture(self.hwnd)
         if image is None:
             return
 
-        map_bbox = vision.minimap_detect(image)
-        if map_bbox is None:
+        if self.map_bbox is None:
+            self.map_bbox = vision.minimap_detect(image, 0.9)
             return
 
-        self.image = vision.split_image(image, map_bbox)
-        self.cimage = ImageTk.PhotoImage(image=Image.fromarray(self.image[..., ::-1]))
-        self.canvas.config(width=self.cimage.width(), height=self.cimage.height())
-        self.canvas.create_image(0, 0, image=self.cimage, anchor="nw")
+        self.image = vision.split_image(image, self.map_bbox)
+        self.tkimage = ImageTk.PhotoImage(image=Image.fromarray(self.image[..., ::-1]))
+        if self.image_prim is None:
+            self.canvas.config(width=self.tkimage.width(), height=self.tkimage.height())
+            self.image_prim = self.canvas.create_image(
+                0, 0, image=self.tkimage, anchor="nw"
+            )
+        self.canvas.itemconfig(self.image_prim, image=self.tkimage)
+
+        for ids, t in enumerate(self.tiles):
+            if ids >= len(self.tiles_prim):
+                self.tiles_prim.append(
+                    self.canvas.create_line(*t, width=4.0, fill="green1")
+                )
+            else:
+                self.canvas.coords(self.tiles_prim[ids], *t)
 
         if self.spos is not None:
-            self.canvas.create_rectangle(*self.spos, fill="red")
-        for t in self.tiles:
-            self.canvas.create_line(*t, width=4.0, fill="red")
+            if self.spos_prim is None:
+                self.spos_prim = self.canvas.create_rectangle(
+                    *self.spos, fill="DeepPink"
+                )
+            else:
+                self.canvas.coords(self.spos_prim, *self.spos)
+        else:
+            self.canvas.delete(self.spos_prim)
+
+        if self.epos is not None:
+            if self.epos_prim is None:
+                self.epos_prim = self.canvas.create_rectangle(
+                    *self.epos, fill="DeepSkyBlue"
+                )
+            else:
+                self.canvas.coords(self.epos_prim, *self.epos)
+        else:
+            self.canvas.delete(self.epos_prim)
+
+        if self.tpos is not None:
+            if self.tpos_prim is None:
+                self.tpos_prim = self.canvas.create_rectangle(
+                    *self.tpos, fill="dark orange"
+                )
+            else:
+                self.canvas.coords(self.tpos_prim, *self.tpos)
+        else:
+            self.canvas.delete(self.tpos_prim)
+
+        # script
+        if self.running:
+            self.script()
+        return
+
+    def script(self):
+        if self.actor is None:
+            return
+
+        if self.image is None:
+            return
+
+        pos = vision.player_detect(self.image)
+        stat = self.actor.update(pos)
+
+        if stat in (actor.FINISHED, actor.FAILED):
+            x = random.randint(5, self.image.shape[1] - 5)
+            y = random.randint(5, self.image.shape[0] - 5)
+            self.tpos = [x, y, x + 12, y + 12]
+            self.actor.move_to(self.tpos)
+
+    def prescript(self):
+        if not self.tiles:
+            return
+
+        self.actor = actor.MoveControl(self.tiles)
         return
 
     def callback_p0(self):
-        pos = vision.player_detect(self.image)
-        if pos is None:
+        if self.image is None:
             return
 
-        self.spos = pos
-        return
+        pos = vision.player_detect(self.image)
+        if pos is not None:
+            self.spos = pos
 
     def callback_p1(self):
-        if self.spos is None:
+        if self.image is None:
             return
 
-        epos = vision.player_detect(self.image)
-        if epos is None:
-            return
-
-        self.tiles.append([self.spos[0], self.spos[3], epos[2], epos[3]])
-        self.spos = None
-        return
+        pos = vision.player_detect(self.image)
+        if pos is not None:
+            self.epos = pos
 
     def callback_save(self):
-        print("save")
+        if self.spos is not None and self.epos is not None:
+            self.tiles.append([self.spos[0], self.spos[3], self.epos[2], self.epos[3]])
+            self.spos = None
+            self.epos = None
+
+            with open("assert/minimap_info.json", mode="wt", encoding="utf-8") as fp:
+                json.dump(self.tiles, fp, indent=4, ensure_ascii=False)
+            print("Save!")
 
     def callback_go(self):
-        print("go")
+        if self.running:
+            self.running = False
+            return
+
+        self.prescript()
+        self.running = True
 
 
 if __name__ == "__main__":

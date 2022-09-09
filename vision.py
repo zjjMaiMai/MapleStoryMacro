@@ -10,7 +10,7 @@ def split_image(image, bbox):
     return image[bbox[1] : bbox[3], bbox[0] : bbox[2]]
 
 
-def template_matching(image, template, threshold=0.8):
+def template_matching(image, template, threshold):
     result = cv2.matchTemplate(image, template, cv2.TM_CCORR_NORMED)
     _, c, _, tl = cv2.minMaxLoc(result)
     if c < threshold:
@@ -19,13 +19,13 @@ def template_matching(image, template, threshold=0.8):
     return [tl[0], tl[1], tl[0] + w, tl[1] + h]
 
 
-def minimap_detect(image):
+def minimap_detect(image, threshold=0.8):
     image_tl = image[:384, :384]
-    tl = template_matching(image_tl, MM_TL_TEMPLATE)
+    tl = template_matching(image_tl, MM_TL_TEMPLATE, threshold)
     if tl is None:
         return None
 
-    br = template_matching(image_tl, MM_BR_TEMPLATE)
+    br = template_matching(image_tl, MM_BR_TEMPLATE, threshold)
     if br is None:
         return None
 
@@ -35,12 +35,12 @@ def minimap_detect(image):
     return [tl[0], tl[1], br[2], br[3]]
 
 
-def player_detect(minimap):
-    return template_matching(minimap, PLAYER_TEMPLATE)
+def player_detect(minimap, threshold=0.8):
+    return template_matching(minimap, PLAYER_TEMPLATE, threshold)
 
 
-def rune_detect(minimap):
-    return template_matching(minimap, RUNE_TEMPLATE)
+def rune_detect(minimap, threshold=0.8):
+    return template_matching(minimap, RUNE_TEMPLATE, threshold)
 
 
 if __name__ == "__main__":

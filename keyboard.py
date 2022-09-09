@@ -7,7 +7,8 @@ import threading
 __all__ = [
     "press_key",
     "release_key",
-    "virtual_key_to_scan_code",
+    "key_to_vkey",
+    "vkey_to_scan",
     "GlobalHotKey",
 ]
 
@@ -71,16 +72,19 @@ def release_key(scan_code):
 VKEY_CODE = {chr(c).upper(): c for c in range(0x30, 0x5B)}
 
 
-def key_str_to_vkey_code(key_str: str):
+def key_to_vkey(key_str: str):
     key_str = key_str.upper()
     if key_str in VKEY_CODE:
         return VKEY_CODE[key_str]
-    return eval("win32con.VK_" + key_str)
+    return eval(f"win32con.VK_{key_str}")
 
 
-def virtual_key_to_scan_code(key_str: str):
-    key_code = key_str_to_vkey_code(key_str)
-    return ctypes.windll.user32.MapVirtualKeyExW(key_code, 0, 0)
+def vkey_to_scan(vkey: int):
+    return ctypes.windll.user32.MapVirtualKeyExW(vkey, 0, 0)
+
+
+def key_to_scan(key_str: str):
+    return vkey_to_scan(key_to_vkey(key_str))
 
 
 class GlobalHotKey:
@@ -106,7 +110,7 @@ class GlobalHotKey:
                 mod_code = 0
             else:
                 mod_code = eval("win32con.MOD_" + mod_str)
-            vkey_code = key_str_to_vkey_code(key_str)
+            vkey_code = key_to_vkey(key_str)
             ctypes.windll.user32.RegisterHotKey(None, ids, mod_code, vkey_code)
             print(f"RegisterHotKey {mod_key}!")
             code_cb[(mod_code, vkey_code)] = cb
