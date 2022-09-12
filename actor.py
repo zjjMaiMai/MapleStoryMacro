@@ -176,31 +176,17 @@ class DualJumpAttack(Action):
 
     def press(self):
         keyboard.press_key(self.alt)
-        time.sleep(random.normalvariate(0.08, 0.01))
+        time.sleep(random.normalvariate(0.07, 0.003))
         keyboard.release_key(self.alt)
-        time.sleep(random.normalvariate(0.07, 0.01))
+        time.sleep(random.normalvariate(0.07, 0.003))
         keyboard.press_key(self.alt)
-        time.sleep(random.normalvariate(0.08, 0.01))
+        time.sleep(random.normalvariate(0.07, 0.003))
         keyboard.release_key(self.alt)
-        time.sleep(random.normalvariate(0.08, 0.01))
+        time.sleep(random.normalvariate(0.07, 0.003))
 
         keyboard.press_key(self.vkey)
-        time.sleep(random.normalvariate(0.1, 0.01))
+        time.sleep(random.normalvariate(0.07, 0.003))
         keyboard.release_key(self.vkey)
-
-
-class MoveAround(Action):
-    def __init__(self, name, cd, olevel, duration):
-        super().__init__(name, cd, "LEFT", olevel, duration)
-        self.left = keyboard.key_to_scan("LEFT")
-        self.right = keyboard.key_to_scan("RIGHT")
-        self.to_right = False
-
-    def press(self):
-        keyboard.release_key(self.right if self.to_right else self.left)
-        time.sleep(random.normalvariate(0.2, 0.01))
-        keyboard.press_key(self.left if self.to_right else self.right)
-        self.to_right = not self.to_right
 
 
 class Actor:
@@ -217,35 +203,57 @@ class Actor:
 
 
 class MyActor(Actor):
-    def __init__(self, move_time):
+    def __init__(self, move_step):
         actions = [
-            Action("F3", cd=185.0, vkey="F3", olevel=10),
-            Action("F2", cd=185.0, vkey="F2", olevel=10),
-            Action("F1", cd=185.0, vkey="F1", olevel=10, duration=2.5),
-            Action("5", cd=125.0, vkey="5", olevel=10, duration=0.1),
-            Action("2", cd=125.0, vkey="2", olevel=10),
-            Action("1", cd=95.0, vkey="1", olevel=10),
-            MoveAround("Move", move_time, olevel=9, duration=0.3),
+            Action("5", cd=125.0, vkey="5", olevel=10, duration=0.5),
+            Action("1", cd=91.0, vkey="1", olevel=10),
+            Action("2", cd=121.0, vkey="2", olevel=10),
+            Action("3", cd=181.0, vkey="3", olevel=10),
+            # Action("2", cd=125.0, vkey="2", olevel=10),
+            # Action("1", cd=95.0, vkey="1", olevel=10),
+            # MoveAround("Move", move_time, olevel=9, duration=0.3),
+            DualJumpAttack("JumpT", cd=61.0, vkey="T", olevel=9, duration=1.0),
             DualJumpAttack("JumpE", cd=10.5, vkey="E", olevel=8, duration=1.4),
-            DualJumpAttack("JumpR", cd=16.5, vkey="R", olevel=7, duration=1.2),
-            Action("T", cd=65.0, vkey="T", olevel=9),
-            DualJumpAttack("JumpQ", cd=0.0, vkey="Q", olevel=0, duration=1.1),
+            DualJumpAttack("JumpR", cd=15.1, vkey="R", olevel=7, duration=1.0),
+            DualJumpAttack("JumpQ", cd=0.0, vkey="Q", olevel=0, duration=1.0),
         ]
         super().__init__(actions)
+
+        self.move_step = move_step
+        self.step = 0
         self.hammer_count = 0
+
+        self.left = keyboard.key_to_scan("LEFT")
+        self.right = keyboard.key_to_scan("RIGHT")
+        self.to_right = True
+
+    def reset(self):
+        self.step = 0
+        self.hammer_count = 0
+        self.to_right = True
 
     def update(self):
         for a in self.actions:
             if not a.is_ready():
                 continue
-            if a.name == "T" and self.hammer_count < 6:
+            if a.name == "JumpT" and self.hammer_count < 6:
                 continue
 
             a.update()
+            if isinstance(a, DualJumpAttack):
+                self.step += 1
+
+            if self.step >= (self.move_step if self.to_right else self.move_step + 1):
+                keyboard.press_key(self.left if self.to_right else self.right)
+                time.sleep(random.normalvariate(0.1, 0.01))
+                keyboard.release_key(self.left if self.to_right else self.right)
+                time.sleep(random.normalvariate(0.1, 0.01))
+                self.to_right = not self.to_right
+                self.step = 0
 
             if a.name == "JumpQ":
                 self.hammer_count = min(self.hammer_count + 1, 6)
-            elif a.name == "T":
+            elif a.name == "JumpT":
                 self.hammer_count = 0
 
             break

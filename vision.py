@@ -4,6 +4,7 @@ MM_TL_TEMPLATE = cv2.imread("template/minimap_tl.png", cv2.IMREAD_COLOR)
 MM_BR_TEMPLATE = cv2.imread("template/minimap_br.png", cv2.IMREAD_COLOR)
 PLAYER_TEMPLATE = cv2.imread("template/player.png", cv2.IMREAD_COLOR)
 RUNE_TEMPLATE = cv2.imread("template/rune.png", cv2.IMREAD_COLOR)
+MUSHROOMS_TEMPLATE = cv2.imread("template/mushrooms.png", cv2.IMREAD_COLOR)
 
 
 def split_image(image, bbox):
@@ -35,12 +36,16 @@ def minimap_detect(image, threshold=0.8):
     return [tl[0], tl[1], br[2], br[3]]
 
 
-def player_detect(minimap, threshold=0.8):
-    return template_matching(minimap, PLAYER_TEMPLATE, threshold)
+def player_detect(image, threshold=0.8):
+    return template_matching(image, PLAYER_TEMPLATE, threshold)
 
 
-def rune_detect(minimap, threshold=0.8):
-    return template_matching(minimap, RUNE_TEMPLATE, threshold)
+def rune_detect(image, threshold=0.8):
+    return template_matching(image, RUNE_TEMPLATE, threshold)
+
+
+def mushrooms_detect(image, threshold=0.8):
+    return template_matching(image, RUNE_TEMPLATE, threshold)
 
 
 if __name__ == "__main__":

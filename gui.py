@@ -5,14 +5,18 @@ import vision
 import window
 import random
 import keyboard
+import argparse
+import winsound
+import threading
 import tkinter as tk
 import actor
 from PIL import Image, ImageTk
 
 
 class App(tk.Frame):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, move_step, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.move_step = move_step
         self.canvas = tk.Canvas(
             self,
             width=200,
@@ -32,10 +36,10 @@ class App(tk.Frame):
             raise RuntimeError
         self.hotkey = keyboard.GlobalHotKey(
             {
-                "CONTROL+F": self.callback_p0,
-                "CONTROL+G": self.callback_p1,
-                "CONTROL+S": self.callback_save,
-                "CONTROL+RETURN": self.callback_go,
+                "SHIFT+1": self.callback_p0,
+                "SHIFT+2": self.callback_p1,
+                "SHIFT+S": self.callback_save,
+                "SHIFT+G": self.callback_go,
             }
         )
         self.hotkey.start()
@@ -65,13 +69,11 @@ class App(tk.Frame):
         self.running = False
 
         # actor
-        self.actor = None
+        self.actor = actor.MyActor(self.move_step)
+        self.warn_detect = threading.Thread(target=self.warning_detect, daemon=True)
+        self.warn_detect.start()
 
-    def loop(self):
-        self.custom_loop()
-        self.after(30, self.loop)
-
-    def custom_loop(self):
+    def warning_detect(self):
         image = window.capture(self.hwnd)
         if image is None:
             return
@@ -80,52 +82,77 @@ class App(tk.Frame):
             self.map_bbox = vision.minimap_detect(image, 0.9)
             return
 
-        self.image = vision.split_image(image, self.map_bbox)
-        self.tkimage = ImageTk.PhotoImage(image=Image.fromarray(self.image[..., ::-1]))
-        if self.image_prim is None:
-            self.canvas.config(width=self.tkimage.width(), height=self.tkimage.height())
-            self.image_prim = self.canvas.create_image(
-                0, 0, image=self.tkimage, anchor="nw"
+        minimap = vision.split_image(image, self.map_bbox)
+        if vision.rune_detect(minimap, 0.9) is not None:
+            winsound.PlaySound(
+                "assert/siren.wav", winsound.SND_FILENAME | winsound.SND_ASYNC
             )
-        self.canvas.itemconfig(self.image_prim, image=self.tkimage)
-
-        for ids, t in enumerate(self.tiles):
-            if ids >= len(self.tiles_prim):
-                self.tiles_prim.append(
-                    self.canvas.create_line(*t, width=4.0, fill="green1")
-                )
-            else:
-                self.canvas.coords(self.tiles_prim[ids], *t)
-
-        if self.spos is not None:
-            if self.spos_prim is None:
-                self.spos_prim = self.canvas.create_rectangle(
-                    *self.spos, fill="DeepPink"
-                )
-            else:
-                self.canvas.coords(self.spos_prim, *self.spos)
+        # elif vision.mushrooms_detect(image, 0.9) is not None:
+        #     winsound.PlaySound(
+        #         "assert/siren.wav", winsound.SND_FILENAME | winsound.SND_ASYNC
+        #     )
         else:
-            self.canvas.delete(self.spos_prim)
+            winsound.PlaySound(None, winsound.SND_PURGE)
 
-        if self.epos is not None:
-            if self.epos_prim is None:
-                self.epos_prim = self.canvas.create_rectangle(
-                    *self.epos, fill="DeepSkyBlue"
-                )
-            else:
-                self.canvas.coords(self.epos_prim, *self.epos)
-        else:
-            self.canvas.delete(self.epos_prim)
+    def loop(self):
+        self.custom_loop()
+        self.after(15, self.loop)
 
-        if self.tpos is not None:
-            if self.tpos_prim is None:
-                self.tpos_prim = self.canvas.create_rectangle(
-                    *self.tpos, fill="dark orange"
-                )
-            else:
-                self.canvas.coords(self.tpos_prim, *self.tpos)
-        else:
-            self.canvas.delete(self.tpos_prim)
+    def custom_loop(self):
+        # image = window.capture(self.hwnd)
+        # if image is None:
+        #     return
+
+        # if self.map_bbox is None:
+        #     self.map_bbox = vision.minimap_detect(image, 0.9)
+        #     return
+
+        # self.image = vision.split_image(image, self.map_bbox)
+        # self.tkimage = ImageTk.PhotoImage(image=Image.fromarray(self.image[..., ::-1]))
+        # if self.image_prim is None:
+        #     self.canvas.config(width=self.tkimage.width(), height=self.tkimage.height())
+        #     self.image_prim = self.canvas.create_image(
+        #         0, 0, image=self.tkimage, anchor="nw"
+        #     )
+        # self.canvas.itemconfig(self.image_prim, image=self.tkimage)
+
+        # for ids, t in enumerate(self.tiles):
+        #     if ids >= len(self.tiles_prim):
+        #         self.tiles_prim.append(
+        #             self.canvas.create_line(*t, width=4.0, fill="green1")
+        #         )
+        #     else:
+        #         self.canvas.coords(self.tiles_prim[ids], *t)
+
+        # if self.spos is not None:
+        #     if self.spos_prim is None:
+        #         self.spos_prim = self.canvas.create_rectangle(
+        #             *self.spos, fill="DeepPink"
+        #         )
+        #     else:
+        #         self.canvas.coords(self.spos_prim, *self.spos)
+        # else:
+        #     self.canvas.delete(self.spos_prim)
+
+        # if self.epos is not None:
+        #     if self.epos_prim is None:
+        #         self.epos_prim = self.canvas.create_rectangle(
+        #             *self.epos, fill="DeepSkyBlue"
+        #         )
+        #     else:
+        #         self.canvas.coords(self.epos_prim, *self.epos)
+        # else:
+        #     self.canvas.delete(self.epos_prim)
+
+        # if self.tpos is not None:
+        #     if self.tpos_prim is None:
+        #         self.tpos_prim = self.canvas.create_rectangle(
+        #             *self.tpos, fill="dark orange"
+        #         )
+        #     else:
+        #         self.canvas.coords(self.tpos_prim, *self.tpos)
+        # else:
+        #     self.canvas.delete(self.tpos_prim)
 
         # script
         if self.running:
@@ -136,23 +163,10 @@ class App(tk.Frame):
         if self.actor is None:
             return
 
-        if self.image is None:
-            return
-
-        pos = vision.player_detect(self.image)
-        stat = self.actor.update(pos)
-
-        if stat in (actor.FINISHED, actor.FAILED):
-            x = random.randint(5, self.image.shape[1] - 5)
-            y = random.randint(5, self.image.shape[0] - 5)
-            self.tpos = [x, y, x + 12, y + 12]
-            self.actor.move_to(self.tpos)
+        if window.active_window() == self.hwnd:
+            self.actor.update()
 
     def prescript(self):
-        if not self.tiles:
-            return
-
-        self.actor = actor.MoveControl(self.tiles)
         return
 
     def callback_p0(self):
@@ -187,13 +201,19 @@ class App(tk.Frame):
             return
 
         self.prescript()
+        self.actor.reset()
         self.running = True
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("move_step", type=int)
+    args = parser.parse_args()
+    print(args)
+
     root = tk.Tk()
     root.rowconfigure(0, weight=1)
     root.columnconfigure(0, weight=1)
 
-    app = App(root)
+    app = App(args.move_step, root)
     root.mainloop()
