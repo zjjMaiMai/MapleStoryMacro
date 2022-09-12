@@ -73,9 +73,10 @@ class App(tk.Frame):
         self.warn_detect.start()
 
     def warning_detect(self):
-        sound = False
         playing = False
         while True:
+            sound = False
+
             image = window.capture(self.hwnd)
             if image is None:
                 continue
@@ -85,12 +86,18 @@ class App(tk.Frame):
                 continue
 
             minimap = vision.split_image(image, self.map_bbox)
-            if vision.rune_detect(minimap) is not None:
-                sound = True
-            elif vision.mushrooms_detect(image) is not None:
+
+            rune = vision.rune_detect(minimap)
+            if rune is not None:
+                print("RUNE!RUNE!")
+                self.image = vision.split_image(minimap, rune)
                 sound = True
             else:
-                sound = False
+                mushrooms = vision.mushrooms_detect(image)
+                if mushrooms is not None:
+                    print("MUSHROOMS!")
+                    self.image = vision.split_image(image, mushrooms)
+                    sound = True
 
             if sound == True and playing == False:
                 winsound.PlaySound(
@@ -109,22 +116,18 @@ class App(tk.Frame):
         self.after(15, self.loop)
 
     def custom_loop(self):
-        # image = window.capture(self.hwnd)
-        # if image is None:
-        #     return
-
-        # if self.map_bbox is None:
-        #     self.map_bbox = vision.minimap_detect(image, 0.9)
-        #     return
-
-        # self.image = vision.split_image(image, self.map_bbox)
-        # self.tkimage = ImageTk.PhotoImage(image=Image.fromarray(self.image[..., ::-1]))
-        # if self.image_prim is None:
-        #     self.canvas.config(width=self.tkimage.width(), height=self.tkimage.height())
-        #     self.image_prim = self.canvas.create_image(
-        #         0, 0, image=self.tkimage, anchor="nw"
-        #     )
-        # self.canvas.itemconfig(self.image_prim, image=self.tkimage)
+        if self.image is not None:
+            self.tkimage = ImageTk.PhotoImage(
+                image=Image.fromarray(self.image[..., ::-1])
+            )
+            if self.image_prim is None:
+                self.canvas.config(
+                    width=self.tkimage.width(), height=self.tkimage.height()
+                )
+                self.image_prim = self.canvas.create_image(
+                    0, 0, image=self.tkimage, anchor="nw"
+                )
+            self.canvas.itemconfig(self.image_prim, image=self.tkimage)
 
         # for ids, t in enumerate(self.tiles):
         #     if ids >= len(self.tiles_prim):
