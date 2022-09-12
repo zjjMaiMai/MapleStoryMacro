@@ -18,8 +18,8 @@ class App(tk.Frame):
         self.move_step = move_step
         self.canvas = tk.Canvas(
             self,
-            width=200,
-            height=100,
+            width=256,
+            height=128,
             borderwidth=0,
             highlightthickness=0,
             background="green",
@@ -89,9 +89,13 @@ class App(tk.Frame):
 
             rune = vision.rune_detect(minimap)
             if rune is not None:
-                print("RUNE!RUNE!")
-                self.image = vision.split_image(minimap, rune)
-                sound = True
+                rune_debuff = vision.rune_debuff_detect(image)
+                if rune_debuff is None:
+                    print("RUNE!RUNE!")
+                    self.image = vision.split_image(minimap, rune)
+                    sound = True
+                else:
+                    self.image = vision.split_image(image, rune_debuff)
             else:
                 mushrooms = vision.mushrooms_detect(image)
                 if mushrooms is not None:
@@ -122,7 +126,8 @@ class App(tk.Frame):
             )
             if self.image_prim is None:
                 self.canvas.config(
-                    width=self.tkimage.width(), height=self.tkimage.height()
+                    width=max(self.tkimage.width(), 256),
+                    height=max(self.tkimage.height(), 128),
                 )
                 self.image_prim = self.canvas.create_image(
                     0, 0, image=self.tkimage, anchor="nw"

@@ -42,15 +42,15 @@ def player_detect(image, threshold=0.8):
 
 
 def rune_detect(image, threshold=0.8):
-    pos = template_matching(image, RUNE_TEMPLATE, threshold)
-    if pos is None:
-        return None
+    return template_matching(image, RUNE_TEMPLATE, threshold)
 
-    debuff = template_matching(image, RUNE_DEBUFF_TEMPLATE, threshold)
-    if debuff is not None:
-        return None
 
-    return pos
+def rune_debuff_detect(image, threshold=0.8):
+    image_buff = image[55:74]
+    rel_pos = template_matching(image_buff, RUNE_DEBUFF_TEMPLATE, threshold)
+    if rel_pos is not None:
+        return [rel_pos[0], rel_pos[1] + 55, rel_pos[2], rel_pos[3] + 55]
+    return None
 
 
 def mushrooms_detect(image, threshold=0.8):
