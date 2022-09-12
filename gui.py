@@ -74,25 +74,36 @@ class App(tk.Frame):
         self.warn_detect.start()
 
     def warning_detect(self):
-        image = window.capture(self.hwnd)
-        if image is None:
-            return
+        sound = False
+        playing = False
+        while True:
+            image = window.capture(self.hwnd)
+            if image is None:
+                continue
 
-        if self.map_bbox is None:
-            self.map_bbox = vision.minimap_detect(image, 0.9)
-            return
+            if self.map_bbox is None:
+                self.map_bbox = vision.minimap_detect(image, 0.9)
+                continue
 
-        minimap = vision.split_image(image, self.map_bbox)
-        if vision.rune_detect(minimap, 0.9) is not None:
-            winsound.PlaySound(
-                "assert/siren.wav", winsound.SND_FILENAME | winsound.SND_ASYNC
-            )
-        # elif vision.mushrooms_detect(image, 0.9) is not None:
-        #     winsound.PlaySound(
-        #         "assert/siren.wav", winsound.SND_FILENAME | winsound.SND_ASYNC
-        #     )
-        else:
-            winsound.PlaySound(None, winsound.SND_PURGE)
+            minimap = vision.split_image(image, self.map_bbox)
+            if vision.rune_detect(minimap, 0.9) is not None:
+                sound = True
+            # elif vision.mushrooms_detect(image, 0.9) is not None:
+            #     sound = True
+            else:
+                sound = False
+
+            if sound == True and playing == False:
+                winsound.PlaySound(
+                    "assert/siren.wav",
+                    winsound.SND_FILENAME + winsound.SND_ASYNC + winsound.SND_LOOP,
+                )
+                playing = True
+            elif sound == False:
+                winsound.PlaySound(None, winsound.SND_FILENAME)
+                playing = False
+
+            time.sleep(1.0)
 
     def loop(self):
         self.custom_loop()
