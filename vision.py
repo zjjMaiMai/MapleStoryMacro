@@ -4,6 +4,7 @@ MM_TL_TEMPLATE = cv2.imread("template/minimap_tl.png", cv2.IMREAD_COLOR)
 MM_BR_TEMPLATE = cv2.imread("template/minimap_br.png", cv2.IMREAD_COLOR)
 PLAYER_TEMPLATE = cv2.imread("template/player.png", cv2.IMREAD_COLOR)
 RUNE_TEMPLATE = cv2.imread("template/rune.png", cv2.IMREAD_COLOR)
+RUNE_DEBUFF_TEMPLATE = cv2.imread("template/rune_debuff.png", cv2.IMREAD_COLOR)
 MUSHROOMS_TEMPLATE = cv2.imread("template/mushrooms.png", cv2.IMREAD_COLOR)
 
 
@@ -41,7 +42,15 @@ def player_detect(image, threshold=0.8):
 
 
 def rune_detect(image, threshold=0.8):
-    return template_matching(image, RUNE_TEMPLATE, threshold)
+    pos = template_matching(image, RUNE_TEMPLATE, threshold)
+    if pos is None:
+        return None
+
+    debuff = template_matching(image, RUNE_DEBUFF_TEMPLATE, threshold)
+    if debuff is not None:
+        return None
+
+    return pos
 
 
 def mushrooms_detect(image, threshold=0.8):
