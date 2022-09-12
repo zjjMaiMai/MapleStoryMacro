@@ -54,7 +54,11 @@ def rune_debuff_detect(image, threshold=0.8):
 
 
 def mushrooms_detect(image, threshold=0.8):
-    return template_matching(image, MUSHROOMS_TEMPLATE, threshold)
+    image_buff = image[55:74]
+    rel_pos = template_matching(image_buff, MUSHROOMS_TEMPLATE, threshold)
+    if rel_pos is not None:
+        return [rel_pos[0], rel_pos[1] + 55, rel_pos[2], rel_pos[3] + 55]
+    return None
 
 
 if __name__ == "__main__":
