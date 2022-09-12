@@ -3,7 +3,6 @@ import time
 import json
 import vision
 import window
-import random
 import keyboard
 import argparse
 import winsound
@@ -82,14 +81,14 @@ class App(tk.Frame):
                 continue
 
             if self.map_bbox is None:
-                self.map_bbox = vision.minimap_detect(image, 0.9)
+                self.map_bbox = vision.minimap_detect(image)
                 continue
 
             minimap = vision.split_image(image, self.map_bbox)
-            if vision.rune_detect(minimap, 0.9) is not None:
+            if vision.rune_detect(minimap) is not None:
                 sound = True
-            # elif vision.mushrooms_detect(image, 0.9) is not None:
-            #     sound = True
+            elif vision.mushrooms_detect(image) is not None:
+                sound = True
             else:
                 sound = False
 

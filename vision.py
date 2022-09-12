@@ -54,7 +54,7 @@ def rune_detect(image, threshold=0.8):
 
 
 def mushrooms_detect(image, threshold=0.8):
-    return template_matching(image, RUNE_TEMPLATE, threshold)
+    return template_matching(image, MUSHROOMS_TEMPLATE, threshold)
 
 
 if __name__ == "__main__":
