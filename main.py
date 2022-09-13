@@ -225,7 +225,7 @@ class App(tk.Frame):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("move_step", type=int)
+    parser.add_argument("move", type=int, nargs=2)
     args = parser.parse_args()
     print(args)
 
@@ -233,5 +233,5 @@ if __name__ == "__main__":
     root.rowconfigure(0, weight=1)
     root.columnconfigure(0, weight=1)
 
-    app = App(args.move_step, root)
+    app = App(args.move, root)
     root.mainloop()

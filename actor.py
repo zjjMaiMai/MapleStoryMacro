@@ -243,7 +243,7 @@ class MyActor(Actor):
             if isinstance(a, DualJumpAttack):
                 self.step += 1
 
-            if self.step >= (self.move_step if self.to_right else self.move_step + 1):
+            if self.step >= (self.move_step[1] if self.to_right else self.move_step[0]):
                 keyboard.press_key(self.left if self.to_right else self.right)
                 time.sleep(random.normalvariate(0.1, 0.01))
                 keyboard.release_key(self.left if self.to_right else self.right)
