@@ -25,7 +25,7 @@ def main():
             children=[
                 py_trees.composites.Selector(
                     children=[
-                        py_trees.behaviours.SuccessEveryN("Counter", 100),
+                        py_trees.behaviours.SuccessEveryN("Counter", 100), # 防止转身被延迟卡顿吃掉以后，一直撞墙
                         AtTarget(50, 1000),
                     ]
                 ),
