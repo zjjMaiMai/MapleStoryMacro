@@ -3,6 +3,7 @@ import ctypes.wintypes
 import atexit
 import win32con
 import threading
+import messagequeue
 
 __all__ = [
     "press_key",
@@ -53,6 +54,27 @@ class Input(ctypes.Structure):
     _fields_ = [("type", ctypes.c_ulong), ("ii", Input_I)]
 
 
+VKEY_CODE = {chr(c).upper(): c for c in range(0x30, 0x5B)}
+
+
+def key_to_vkey(key_str: str):
+    '''
+    https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+    '''
+    key_str = key_str.upper()
+    if key_str in VKEY_CODE:
+        return VKEY_CODE[key_str]
+    return eval(f"win32con.VK_{key_str}")
+
+
+def vkey_to_scan(vkey: int):
+    return ctypes.windll.user32.MapVirtualKeyExW(vkey, 0, 0)
+
+
+def key_to_scan(key_str: str):
+    return vkey_to_scan(key_to_vkey(key_str))
+
+
 def press_key(scan_code):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
@@ -69,39 +91,19 @@ def release_key(scan_code):
     ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
 
 
-VKEY_CODE = {chr(c).upper(): c for c in range(0x30, 0x5B)}
-
-
-def key_to_vkey(key_str: str):
-    key_str = key_str.upper()
-    if key_str in VKEY_CODE:
-        return VKEY_CODE[key_str]
-    return eval(f"win32con.VK_{key_str}")
-
-
-def vkey_to_scan(vkey: int):
-    return ctypes.windll.user32.MapVirtualKeyExW(vkey, 0, 0)
-
-
-def key_to_scan(key_str: str):
-    return vkey_to_scan(key_to_vkey(key_str))
-
-
-class GlobalHotKey:
+class GlobalHotKey(threading.Thread):
     def __init__(self, key_cb):
+        super().__init__(daemon=True)
         self.key_cb = key_cb
         self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self._do, daemon=True)
         atexit.register(self.stop)
-
-    def start(self):
-        self.thread.start()
+        self.start()
 
     def stop(self):
         self.stop_event.set()
-        self.thread.join()
+        self.join()
 
-    def _do(self):
+    def run(self):
         code_cb = dict()
 
         for ids, (mod_key, cb) in enumerate(self.key_cb.items()):
@@ -126,7 +128,7 @@ class GlobalHotKey:
                 vkey_code = msg.lParam >> 16
                 callback = code_cb.get((mod_code, vkey_code), None)
                 if callback is not None:
-                    callback()
+                    messagequeue.push(callback)
                 continue
             ctypes.windll.user32.TranslateMessage(ctypes.byref(msg))
             ctypes.windll.user32.DispatchMessageA(ctypes.byref(msg))

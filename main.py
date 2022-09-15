@@ -1,237 +1,309 @@
-import os
 import time
-import json
-import vision
+import atexit
+import random
 import window
+import vision
+import py_trees
 import keyboard
-import argparse
-import winsound
 import threading
-import tkinter as tk
-import actor
-from PIL import Image, ImageTk
+import numpy as np
+import messagequeue
+
+KEY_MEAN = 0.05
+KEY_STD = KEY_MEAN * 0.005
 
 
-class App(tk.Frame):
-    def __init__(self, move_step, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.move_step = move_step
-        self.canvas = tk.Canvas(
-            self,
-            width=256,
-            height=128,
-            borderwidth=0,
-            highlightthickness=0,
-            background="green",
-        )
-        self.grid(row=0, column=0, sticky="nsew")
+class BehaviourWithBlackboard(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super().__init__()
+        self.bb = self.attach_blackboard_client("Blackboard")
 
-        self.canvas.grid(row=0, column=0, sticky="nsew")
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
 
-        self.hwnd = window.find_window("MapleStory")
-        if self.hwnd == 0:
-            raise RuntimeError
-        self.hotkey = keyboard.GlobalHotKey(
-            {
-                "SHIFT+1": self.callback_p0,
-                "SHIFT+2": self.callback_p1,
-                "SHIFT+S": self.callback_save,
-                "SHIFT+G": self.callback_go,
-            }
-        )
-        self.hotkey.start()
-        self.after(30, self.loop)
+class Animation(BehaviourWithBlackboard):
+    def __init__(self, seq, cd=0.0):
+        super().__init__()
+        self.seq = seq
+        self.cd = cd
+        self.last_use = 0.0
+        self.bb.register_key("/animate_end", py_trees.common.Access.WRITE)
 
-        # infoj
-        self.image = None
-        self.map_bbox = None
-        self.spos = None
-        self.epos = None
-        self.tpos = None
-        self.tiles = []
+    def initialise(self):
+        self.bb.set("/animate_end", 0.0, overwrite=False)
 
-        # primitive
-        self.image_prim = None
-        self.spos_prim = None
-        self.epos_prim = None
-        self.tpos_prim = None
-        self.tiles_prim = []
+    def animate(self):
+        raise NotImplementedError
 
-        # reload tiles
-        if os.path.exists("assert/minimap_info.json"):
-            with open("assert/minimap_info.json", mode="rt", encoding="utf-8") as fp:
-                self.tiles = json.load(fp)
+    def update(self):
+        # 这里只判断CD 不判断动画时间
+        # 因为可能某些技能具有"强制"属性
+        if time.time() - self.last_use < self.cd:
+            return py_trees.common.Status.FAILURE
+        else:
+            self.last_use = self.animate()
+            self.bb.set("/animate_end", self.last_use + self.seq)
+            return py_trees.common.Status.SUCCESS
 
-        # flags
-        self.running = False
 
-        # actor
-        self.actor = actor.MyActor(self.move_step)
-        self.warn_detect = threading.Thread(target=self.warning_detect, daemon=True)
-        self.warn_detect.start()
+class WaitForAnimationEnd(BehaviourWithBlackboard):
+    def __init__(self):
+        super().__init__()
+        self.bb.register_key("/animate_end", py_trees.common.Access.READ)
 
-    def warning_detect(self):
-        playing = False
-        while True:
-            sound = False
+    def update(self):
+        if self.bb.exists("/animate_end") and time.time() <= self.bb.get(
+            "/animate_end"
+        ):
+            return py_trees.common.Status.RUNNING
+        else:
+            return py_trees.common.Status.SUCCESS
 
-            image = window.capture(self.hwnd)
-            if image is None:
+
+class Skill(Animation):
+    def __init__(self, cd, seq, key):
+        super().__init__(seq, cd)
+        self.key = key
+        self.skey = keyboard.key_to_scan(key)
+
+    def animate(self):
+        delay = random.normalvariate(KEY_MEAN, KEY_STD)
+        use_t = messagequeue.push(lambda: keyboard.press_key(self.skey))
+        messagequeue.push(lambda: keyboard.release_key(self.skey), delay)
+        return use_t
+
+    def update(self):
+        stat = super().update()
+        if stat == py_trees.common.Status.SUCCESS:
+            self.logger.info("{}".format(self.key))
+        return stat
+
+
+class DoubleJumpSkill(Skill):
+    def __init__(self, cd, seq, key):
+        super().__init__(cd, seq, key)
+        self.jump = keyboard.key_to_scan("LMENU")
+
+    def animate(self):
+        delay = np.random.normal(KEY_MEAN, KEY_STD, size=(5,))
+        delay = np.cumsum(delay)
+        use_t = messagequeue.push(lambda: keyboard.press_key(self.jump))
+        messagequeue.push(lambda: keyboard.release_key(self.jump), delay=delay[0])
+        messagequeue.push(lambda: keyboard.press_key(self.jump), delay=delay[1])
+        messagequeue.push(lambda: keyboard.release_key(self.jump), delay=delay[2])
+        messagequeue.push(lambda: keyboard.press_key(self.skey), delay=delay[3])
+        messagequeue.push(lambda: keyboard.release_key(self.skey), delay=delay[4])
+        return use_t
+
+
+class DataGather(BehaviourWithBlackboard):
+    def __init__(self):
+        super().__init__()
+        self.game_active = False
+        self.player_pos = None
+        self.rune_pos = None
+        self.map_pos = None
+
+        self.gather = threading.Thread(target=self.run_thread, daemon=True)
+        self.stop_event = threading.Event()
+        self.data_lock = threading.Lock()
+        atexit.register(self.stop_thread)
+        self.gather.start()
+
+    def set_value(self, name, value):
+        if value is None:
+            return
+
+        self.bb.register_key(name, py_trees.common.Access.WRITE)
+        self.bb.set(name, value)
+
+    def update(self):
+        with self.data_lock:
+            if not self.game_active:
+                return py_trees.common.Status.FAILURE
+            self.set_value("/data/player", self.player_pos)
+            self.set_value("/data/rune_pos", self.rune_pos)
+            self.set_value("/data/map_pos", self.map_pos)
+        return py_trees.common.Status.SUCCESS
+
+    def run_thread(self):
+        while not self.stop_event.is_set():
+            # window
+            hwnd = window.find_window("MapleStory")
+            if hwnd == 0:
                 continue
 
-            if self.map_bbox is None:
-                self.map_bbox = vision.minimap_detect(image)
-                continue
-
-            minimap = vision.split_image(image, self.map_bbox)
-
-            rune = vision.rune_detect(minimap)
-            if rune is not None:
-                rune_debuff = vision.rune_debuff_detect(image)
-                if rune_debuff is None:
-                    print("RUNE!RUNE!")
-                    self.image = vision.split_image(minimap, rune)
-                    sound = True
+            with self.data_lock:
+                if window.active_window() != hwnd:
+                    self.game_active = False
+                    continue
                 else:
-                    self.image = vision.split_image(image, rune_debuff)
-            else:
-                mushrooms = vision.mushrooms_detect(image)
-                if mushrooms is not None:
-                    print("MUSHROOMS!")
-                    self.image = vision.split_image(image, mushrooms)
-                    sound = True
+                    self.game_active = True
 
-            if sound == True and playing == False:
-                winsound.PlaySound(
-                    "assert/siren.wav",
-                    winsound.SND_FILENAME + winsound.SND_ASYNC + winsound.SND_LOOP,
-                )
-                playing = True
-            elif sound == False:
-                winsound.PlaySound(None, winsound.SND_FILENAME)
-                playing = False
+                image = window.capture(hwnd)
+                if image is None:
+                    continue
 
-            time.sleep(1.0)
+                self.map_pos = vision.minimap_detect(image, 0.9, self.map_pos)
+                if self.map_pos is None:
+                    continue
 
-    def loop(self):
-        self.custom_loop()
-        self.after(15, self.loop)
+                minimap = vision.split_image(image, self.map_pos)
+                self.player_pos = vision.player_detect(minimap, 0.9, self.player_pos)
+                self.rune_pos = vision.rune_detect(minimap)
+            time.sleep(0.05)
 
-    def custom_loop(self):
-        if self.image is not None:
-            self.tkimage = ImageTk.PhotoImage(
-                image=Image.fromarray(self.image[..., ::-1])
-            )
-            if self.image_prim is None:
-                self.canvas.config(
-                    width=max(self.tkimage.width(), 256),
-                    height=max(self.tkimage.height(), 128),
-                )
-                self.image_prim = self.canvas.create_image(
-                    0, 0, image=self.tkimage, anchor="nw"
-                )
-            self.canvas.itemconfig(self.image_prim, image=self.tkimage)
+    def stop_thread(self):
+        self.stop_event.set()
+        self.gather.join()
 
-        # for ids, t in enumerate(self.tiles):
-        #     if ids >= len(self.tiles_prim):
-        #         self.tiles_prim.append(
-        #             self.canvas.create_line(*t, width=4.0, fill="green1")
-        #         )
-        #     else:
-        #         self.canvas.coords(self.tiles_prim[ids], *t)
 
-        # if self.spos is not None:
-        #     if self.spos_prim is None:
-        #         self.spos_prim = self.canvas.create_rectangle(
-        #             *self.spos, fill="DeepPink"
-        #         )
-        #     else:
-        #         self.canvas.coords(self.spos_prim, *self.spos)
-        # else:
-        #     self.canvas.delete(self.spos_prim)
+class AtTarget(BehaviourWithBlackboard):
+    def __init__(self, tx=2, ty=2):
+        super().__init__()
+        self.tx = tx
+        self.ty = ty
 
-        # if self.epos is not None:
-        #     if self.epos_prim is None:
-        #         self.epos_prim = self.canvas.create_rectangle(
-        #             *self.epos, fill="DeepSkyBlue"
-        #         )
-        #     else:
-        #         self.canvas.coords(self.epos_prim, *self.epos)
-        # else:
-        #     self.canvas.delete(self.epos_prim)
+        self.bb.register_key("/data/player", py_trees.common.Access.READ)
+        self.bb.register_key("/move/target", py_trees.common.Access.READ)
 
-        # if self.tpos is not None:
-        #     if self.tpos_prim is None:
-        #         self.tpos_prim = self.canvas.create_rectangle(
-        #             *self.tpos, fill="dark orange"
-        #         )
-        #     else:
-        #         self.canvas.coords(self.tpos_prim, *self.tpos)
-        # else:
-        #     self.canvas.delete(self.tpos_prim)
+    def update(self):
+        player = self.bb.get("/data/player")
+        target = self.bb.get("/move/target")
+        dx = abs(player[0] - target[0])
+        dy = abs(player[1] - target[1])
+        if dx <= self.tx and dy <= self.ty:
+            self.logger.info("AtTarget {} {}".format(dx, dy))
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
 
-        # script
-        if self.running:
-            self.script()
-        return
 
-    def script(self):
-        if self.actor is None:
-            return
+class TurnToTarget(Animation):
+    def __init__(self):
+        super().__init__(0.2)
+        self.left = keyboard.key_to_scan("LEFT")
+        self.right = keyboard.key_to_scan("RIGHT")
+        self.bb.register_key("/data/player", py_trees.common.Access.READ)
+        self.bb.register_key("/move/target", py_trees.common.Access.READ)
 
-        if window.active_window() == self.hwnd:
-            self.actor.update()
+    def animate(self):
+        player = self.bb.get("/data/player")
+        target = self.bb.get("/move/target")
 
-    def prescript(self):
-        return
+        if player[0] - target[0] < 0:
+            key = self.right
+            self.logger.info("Turn Right")
+        else:
+            key = self.left
+            self.logger.info("Turn Left")
 
-    def callback_p0(self):
-        if self.image is None:
-            return
+        delay = random.normalvariate(KEY_MEAN, KEY_STD)
+        use_t = messagequeue.push(lambda: keyboard.press_key(key))
+        messagequeue.push(lambda: keyboard.release_key(key), delay)
+        return use_t
 
-        pos = vision.player_detect(self.image)
-        if pos is not None:
-            self.spos = pos
 
-    def callback_p1(self):
-        if self.image is None:
-            return
+class GetTargetFarm(BehaviourWithBlackboard):
+    def __init__(self):
+        super().__init__()
+        self.bb.register_key("/data/player", py_trees.common.Access.READ)
+        self.bb.register_key("/move/target", py_trees.common.Access.WRITE)
+        self.bb.register_key("/data/map_pos", py_trees.common.Access.READ)
 
-        pos = vision.player_detect(self.image)
-        if pos is not None:
-            self.epos = pos
+    def update(self):
+        player = self.bb.get("/data/player")
+        map_pos = self.bb.get("/data/map_pos")
+        map_width = map_pos[2] - map_pos[0]
 
-    def callback_save(self):
-        if self.spos is not None and self.epos is not None:
-            self.tiles.append([self.spos[0], self.spos[3], self.epos[2], self.epos[3]])
-            self.spos = None
-            self.epos = None
+        d_left = player[0]
+        d_right = map_width - d_left
 
-            with open("assert/minimap_info.json", mode="wt", encoding="utf-8") as fp:
-                json.dump(self.tiles, fp, indent=4, ensure_ascii=False)
-            print("Save!")
+        if d_left > d_right:
+            target = [0, 0, 0, 0]
+        else:
+            target = [map_width, 0, 0, 0]
+        self.bb.set("/move/target", target)
+        self.logger.info("GetTarget {}".format(target))
+        return py_trees.common.Status.SUCCESS
 
-    def callback_go(self):
-        if self.running:
-            self.running = False
-            return
 
-        self.prescript()
-        self.actor.reset()
-        self.running = True
+def main():
+    # init data gather
+    data_gather = DataGather()
+
+    # init tree
+    nav_fram = py_trees.composites.Selector(
+        children=[
+            py_trees.behaviours.CheckBlackboardVariableExists("/move/target"),
+            py_trees.composites.Sequence(
+                children=[
+                    py_trees.behaviours.CheckBlackboardVariableExists("/data/map_pos"),
+                    py_trees.behaviours.CheckBlackboardVariableExists("/data/player"),
+                    WaitForAnimationEnd(),
+                    GetTargetFarm(),
+                    TurnToTarget(),
+                ],
+            ),
+        ],
+    )
+    check_fram = py_trees.decorators.Inverter(
+        py_trees.composites.Sequence(
+            children=[
+                py_trees.composites.Selector(
+                    children=[
+                        py_trees.behaviours.SuccessEveryN("Counter", 100),
+                        AtTarget(50, 1000),
+                    ]
+                ),
+                py_trees.behaviours.UnsetBlackboardVariable("/move/target"),
+            ]
+        )
+    )
+    skill_fram = py_trees.composites.Selector(
+        children=[
+            py_trees.decorators.Inverter(WaitForAnimationEnd()),
+            Skill(125.0, 0.5, "5"),
+            Skill(91.0, 0.8, "1"),
+            Skill(121.0, 0.8, "2"),
+            Skill(181.0, 0.8, "3"),
+            DoubleJumpSkill(10.0, 1.2, "E"),
+            DoubleJumpSkill(61.0, 0.95, "T"),
+            DoubleJumpSkill(15.1, 0.95, "R"),
+            DoubleJumpSkill(0.0, 0.9, "Q"),
+        ]
+    )
+
+    farm = py_trees.composites.Sequence(
+        children=[
+            nav_fram,
+            check_fram,
+            skill_fram,
+        ],
+    )
+
+    root = py_trees.composites.Sequence(
+        children=[
+            data_gather,
+            py_trees.composites.Selector(children=[farm]),
+        ],
+    )
+    root.logger.info(py_trees.display.unicode_tree(root))
+    root.logger.info(py_trees.display.unicode_blackboard())
+
+    running = threading.Event()
+
+    def set_event():
+        if running.is_set():
+            running.clear()
+            root.logger.info("STOP!")
+        else:
+            running.set()
+            root.logger.info("RUNNING!")
+
+    keyboard.GlobalHotKey({"SHIFT+G": set_event})
+    while True:
+        if running.is_set():
+            root.tick_once()
+        time.sleep(0.005)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("move", type=int, nargs=2)
-    args = parser.parse_args()
-    print(args)
-
-    root = tk.Tk()
-    root.rowconfigure(0, weight=1)
-    root.columnconfigure(0, weight=1)
-
-    app = App(args.move, root)
-    root.mainloop()
+    main()
