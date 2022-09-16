@@ -4,7 +4,7 @@ import ctypes
 import atexit
 import threading
 
-__all__ = ["push"]
+__all__ = ["push", "empty"]
 
 ctypes.windll.winmm.timeBeginPeriod(1)
 
@@ -20,6 +20,9 @@ class __MessageQueue(threading.Thread):
     def stop(self):
         self.stop_event.set()
         self.join()
+
+    def empty(self):
+        return self.queue.empty()
 
     def push(self, message, delay: float = 0.0, repeat: int = 0):
         t = time.time() + delay
@@ -48,6 +51,7 @@ class __MessageQueue(threading.Thread):
 
 __message_queue = __MessageQueue()
 push = __message_queue.push
+empty = __message_queue.empty
 
 if __name__ == "__main__":
     push(lambda: print(time.time()), 0.5, -1)

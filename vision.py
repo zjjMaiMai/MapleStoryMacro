@@ -31,6 +31,9 @@ def template_matching(image, template, threshold, last=None, r=5):
             min(last[3] + r, h),
         ]
         pi = split_image(image, p)
+        if pi.size == 0:
+            return _template_matching(image, template, threshold)
+
         pr = _template_matching(pi, template, threshold)
         if pr is not None:
             return [

@@ -50,12 +50,12 @@ class WaitForAnimationEnd(BehaviourWithBlackboard):
         self.bb.register_key("/animate_end", py_trees.common.Access.READ)
 
     def update(self):
-        if self.bb.exists("/animate_end") and time.time() <= self.bb.get(
-            "/animate_end"
-        ):
-            return py_trees.common.Status.RUNNING
-        else:
+        if not self.bb.exists("/animate_end"):
             return py_trees.common.Status.SUCCESS
+
+        if time.time() > self.bb.get("/animate_end"):
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.RUNNING
 
 
 class Skill(Animation):
