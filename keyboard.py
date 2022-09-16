@@ -58,9 +58,9 @@ VKEY_CODE = {chr(c).upper(): c for c in range(0x30, 0x5B)}
 
 
 def key_to_vkey(key_str: str):
-    '''
+    """
     https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-    '''
+    """
     key_str = key_str.upper()
     if key_str in VKEY_CODE:
         return VKEY_CODE[key_str]
@@ -75,18 +75,24 @@ def key_to_scan(key_str: str):
     return vkey_to_scan(key_to_vkey(key_str))
 
 
-def press_key(scan_code):
+def press_key(scan_code, extended=False):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
-    ii_.ki = KeyBdInput(0, scan_code, 0x0008, 0, ctypes.pointer(extra))
+    flags_ = 0x0008
+    if extended:
+        flags_ |= 0x0001
+    ii_.ki = KeyBdInput(0, scan_code, flags_, 0, ctypes.pointer(extra))
     x = Input(ctypes.c_ulong(1), ii_)
     ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
 
 
-def release_key(scan_code):
+def release_key(scan_code, extended=False):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
-    ii_.ki = KeyBdInput(0, scan_code, 0x0008 | 0x0002, 0, ctypes.pointer(extra))
+    flags_ = 0x0008 | 0x0002
+    if extended:
+        flags_ |= 0x0001
+    ii_.ki = KeyBdInput(0, scan_code, flags_, 0, ctypes.pointer(extra))
     x = Input(ctypes.c_ulong(1), ii_)
     ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
 

@@ -196,8 +196,8 @@ class TurnToTarget(Animation):
             self.logger.info("Turn Left")
 
         delay = random.normalvariate(KEY_MEAN, KEY_STD)
-        use_t = messagequeue.push(lambda: keyboard.press_key(key))
-        messagequeue.push(lambda: keyboard.release_key(key), delay)
+        use_t = messagequeue.push(lambda: keyboard.press_key(key, True))
+        messagequeue.push(lambda: keyboard.release_key(key, True), delay)
         return use_t
 
 
