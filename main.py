@@ -1,11 +1,7 @@
 from btree import *
 
 
-def main():
-    # init data gather
-    data_gather = DataGather()
-
-    # init tree
+def farm():
     nav_fram = py_trees.composites.Selector(
         children=[
             py_trees.behaviours.CheckBlackboardVariableExists("/move/target"),
@@ -25,7 +21,9 @@ def main():
             children=[
                 py_trees.composites.Selector(
                     children=[
-                        py_trees.behaviours.SuccessEveryN("Counter", 100), # 防止转身被延迟卡顿吃掉以后，一直撞墙
+                        py_trees.behaviours.SuccessEveryN(
+                            "Counter", 100
+                        ),  # 防止转身被延迟卡顿吃掉以后，一直撞墙
                         AtTarget(50, 1000),
                     ]
                 ),
@@ -54,11 +52,30 @@ def main():
             skill_fram,
         ],
     )
+    return farm
+
+
+def rune():
+
+
+    root = py_trees.composites.Selector(
+        children=[
+            py_trees.decorators.Inverter(
+                py_trees.behaviours.CheckBlackboardVariableExists("/data/rune_pos")
+            ),
+        ],
+    )
+    return root
+
+
+def main():
+    # init data gather
+    data_gather = DataGather()
 
     root = py_trees.composites.Sequence(
         children=[
             data_gather,
-            py_trees.composites.Selector(children=[farm]),
+            py_trees.composites.Selector(children=[farm()]),
         ],
     )
     root.logger.info(py_trees.display.unicode_tree(root))

@@ -148,7 +148,7 @@ class DataGather(BehaviourWithBlackboard):
 
                 minimap = vision.split_image(image, self.map_pos)
                 self.player_pos = vision.player_detect(minimap, 0.9, self.player_pos)
-                self.rune_pos = vision.rune_detect(minimap)
+                self.rune_pos = vision.rune_detect(minimap, 0.9, self.rune_pos)
             time.sleep(0.05)
 
     def stop_thread(self):
